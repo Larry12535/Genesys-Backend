@@ -25,14 +25,16 @@ module.exports = function (app, io, workspaceApi, storage, request, statisticsAp
   };
 
   function initializeWorkspace(body, res) {
-    console.log('INITIALIZATION COMPLETE')
+    console.log('INITIALIZATION BEGIN')
     storage.token = body.access_token;
     workspaceApi.initialize({token: storage.token}).then(() => {
+      console.log('workspaceApi.initialize()')
         workspaceApi.activateChannels(workspaceApi.user.employeeId, null, workspaceApi.user.defaultPlace).then(() => {
           storage.user = workspaceApi.user;
-          statisticsApi.initialize(storage.token).then(() => {
-            provisioningApi.initialize({token: storage.token})
-          });
+          res.send({
+            success:true
+          })
+          console.log('activateChannels()')
         })
         .catch(err => {
           throw new Error(err);

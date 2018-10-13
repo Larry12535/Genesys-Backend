@@ -55,7 +55,7 @@ app.use((req, res, next) => {
 require('./routes/targets')(app, workspaceApi);
 require('./routes/voice')(app, workspaceApi, storage);
 require('./routes/provisioning')(app, request, provisioningApi, storage);
-require('./routes/statistics')(app, storage, statisticsApi)
+require('./routes/statistics')(app, storage, statisticsApi);
 require('./controllers/events')(workspaceApi, io, storage);
 
 app.use(morgan('dev'));
