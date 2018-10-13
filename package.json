@@ -1,0 +1,24 @@
+{
+  "name": "workspace-api-sample",
+  "version": "0.1.0",
+  "main": "service/app.js",
+  "author": "Jérémie Pichon <jeremie.pichon@genesys.com>, Stéphane Hervochon <shervoch@genesys.com>",
+  "scripts": {
+    "start": "nodemon service/app.js"
+  },
+  "dependencies": {
+    "body-parser": "^1.18.2",
+    "cors": "^2.8.4",
+    "express": "^4.16.2",
+    "genesys-authentication-client-js": "latest",
+    "genesys-provisioning-client-js": "^1.0.522",
+    "genesys-workspace-client-js": "latest",
+    "morgan": "^1.9.0",
+    "request": "^2.88.0",
+    "socket.io": "^2.1.1"
+  },
+  "devDependencies": {
+    "genesys-statistics-client-js": "^1.0.343",
+    "nodemon": "^1.18.4"
+  }
+}
