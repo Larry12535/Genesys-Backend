@@ -1,0 +1,280 @@
+<html>
+  <head>
+    <title>Workspace API Sample</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" "text/css" href="./fonts/PressStart2P.css"></link>
+    <link rel="stylesheet" "text/css" href="./style.css"></link>
+    <script type="text/javascript" src="./libs/axios.min.js"></script>
+    <script type="text/javascript" src="./libs/socket.io.min.js"></script>
+    <script type="text/javascript" src="./libs/json-formater.js"></script>
+  </head>
+  <body>
+    <div id="app">
+      <div class="header">
+        <h1>Authenticated view</h1>
+        <div class="separator"></div>
+        <div class="actions">
+          <button id="state-toggle">Set Ready</button>
+          <input id="target"/>
+          <button id="search">Search</button>
+          <button id="get-users">Get Users</button>
+          <button id="clear" style="float: right;">Clear</button>
+          <button id="logout" style="float: right;">Logout</button>
+        </div>
+        <div class="separator"></div>
+        <div class="statistics">
+          <label>ObjectId:</label><input id="objectId"/>
+          <label>ObjectType:</label><input id="objectType"/>
+          <label>statName:</label><input id="statName"/>
+          <button id="getStatValue">Get Value</button>
+        </div>
+        <div class="separator"></div>
+      </div>
+      <div class="content">
+        <div class="states">
+          <div>
+            <span>Voice State:</span> <span id="voice-state">Unknown</span>
+          </div>
+          <div>
+            <span>Possible actions:</span>
+          </div>
+          <div class="call-actions">
+            <button id="Answer">Answer</button>
+            <button id="Hold">Hold</button>
+            <button id="Retrieve">Retrieve</button>
+            <button id="Release">Release</button>
+          </div>
+        </div>
+        <div id="logs" class="logs">
+          <div id="logs-container"></div>
+        </div>
+      </div>
+    </div>
+    <img id="secret" src="./secret/nyan.gif"/>
+    <script type="text/javascript">
+      // Not so interesting stuff there
+      const JSONFormatter = window.JSONFormatter.default;
+      const JSONFormatterConfig = {
+        animateOpen: false,
+        animateClose: false,
+        theme: 'dark'
+      }
+
+      // Not there either
+      window.state = 'Unknown';
+      window.callId = null;
+      var formatted = null;
+
+      const voiceStateToggle = document.getElementById('state-toggle');
+      const logsContainer = document.getElementById('logs-container');
+      const voiceState = document.getElementById('voice-state');
+
+      setCallActions = function (actions) {
+        var possibleActions = ['Answer', 'Release', 'Hold', 'Retrieve'];
+        for (var i = 0; i < actions.length; i++) {
+          document.getElementById(actions[i]).style.display = 'block';
+          possibleActions.splice(possibleActions.indexOf(actions[i]), 1);
+        }
+        for (var j = 0; j < possibleActions.length; j++) {
+          document.getElementById(possibleActions[j]).style.display = 'none';
+        }
+      }
+
+      // Event subscriptions
+      const socket = io();
+      // When the state of an agent changes
+      socket.on('voice-update', function (data) {
+        formatted = new JSONFormatter(data, 2, JSONFormatterConfig);
+        logsContainer.appendChild(formatted.render());
+        if (data.dn && data.dn.agentState) {
+          window.state = data.dn.agentState;
+          voiceState.innerText = window.state;
+          if (window.state !== 'Ready') {
+            voiceStateToggle.innerText = 'Set Ready';
+          } else {
+            voiceStateToggle.innerText = 'Set NotReady';
+          }
+        }
+      });
+      // When the state of a call changes
+      socket.on('call-update', function (data) {
+        if (data.call && data.call.state && data.call.id) {
+          window.callId = data.call.id;
+          switch (data.call.state) {
+            default: case 'Ringing':
+              setCallActions(['Answer', 'Release'])
+              break;
+            case 'Established':
+              setCallActions(['Hold', 'Release'])
+              break;
+            case 'Held':
+              setCallActions(['Retrieve', 'Release'])
+              break;
+            case 'Released':
+              setCallActions([])
+              window.callId = null;
+              break;
+          }
+        }
+        formatted = new JSONFormatter(data, 2, JSONFormatterConfig);
+        logsContainer.appendChild(formatted.render());
+      });
+
+      // Get Current Session (on error will redirect to index.html)
+      currentSession = function () {
+        axios.get('http://localhost:3002/current-session')
+        .then(function (response) {
+          formatted = new JSONFormatter(response.data, 2, JSONFormatterConfig);
+          logsContainer.appendChild(formatted.render());
+        })
+        .catch(function (error) {
+          window.location = '/'
+        })
+      }
+      // Logout, will redirect to index.html
+      logout = function () {
+        window.location = '/logout'
+      }
+      // Search for internal targets (try with 'Agent')
+      // PS: Don't type 'Easter Egg', it does nothing awesome...
+      search = function () {
+        var value = document.getElementById('target').value;
+        if (value === 'Easter Egg') {
+          doSomethingAwesome();
+        } else {
+          axios.get('http://localhost:3002/targets/search', {
+            params: {
+              search: value
+            }
+          })
+          .then(function (response) {
+            // On success
+            formatted = new JSONFormatter(response.data, 2, JSONFormatterConfig);
+            logsContainer.appendChild(formatted.render());
+          })
+          .catch(function (error) {
+            // On error
+            formatted = new JSONFormatter(error, 2, JSONFormatterConfig);
+            logsContainer.appendChild(formatted.render());
+          })
+        }
+      }
+      // Get users from provisioning api
+      getUsers = function () {
+        axios.get('http://localhost:3002/provisioning/get-users')
+        .then(function (response) {
+          // On success
+          formatted = new JSONFormatter(response.data, 2, JSONFormatterConfig);
+          logsContainer.appendChild(formatted.render());
+        })
+        .catch(function (error) {
+          // On error
+          formatted = new JSONFormatter(error, 2, JSONFormatterConfig);
+          logsContainer.appendChild(formatted.render());
+        })
+      }
+
+      //Subscribe to statistics
+      getStatValue = function() {
+        var objectId = document.getElementById('objectId').value;
+        var objectType = document.getElementById('objectType').value;
+        var statName = document.getElementById('statName').value;
+        axios.get('http://localhost:3002/statistics/getValue', {
+            params: {
+              objectId: objectId,
+              objectType: objectType,
+              statName: statName
+            }
+          })
+          .then(function (response) {
+            // On success
+            formatted = new JSONFormatter(response.data, 2, JSONFormatterConfig);
+            logsContainer.appendChild(formatted.render());
+          })
+          .catch(function (error) {
+            // On error
+            formatted = new JSONFormatter(error, 2, JSONFormatterConfig);
+            logsContainer.appendChild(formatted.render());
+          })
+      }
+
+      // Set the agent Ready if not, otherwise will set to Not Ready
+      toggleState = function () {
+        axios.get('http://localhost:3002/voice/state', {
+          params: {
+            state: window.state
+          }
+        })
+        .then(function (response) {
+          formatted = new JSONFormatter(response.data, 2, JSONFormatterConfig);
+          logsContainer.appendChild(formatted.render());
+        })
+        .catch(function (error) {
+          formatted = new JSONFormatter(error, 2, JSONFormatterConfig);
+          logsContainer.appendChild(formatted.render());
+        })
+      }
+      doSomethingAwesome = function () {
+        console.log();
+        document.getElementById('secret').style.display = 'block';
+        setTimeout(function () {
+          document.getElementById('secret').style.display = 'none';
+        }, 5000)
+      }
+      // Send call actions, based on the button id.
+      sendCallAction = function (action) {
+        axios.get('http://localhost:3002/voice/call/' + action, {
+          params: {
+            id: window.callId
+          }
+        })
+        .then(function (response) {
+          formatted = new JSONFormatter(response.data, 2, JSONFormatterConfig);
+          logsContainer.appendChild(formatted.render());
+        })
+        .catch(function (error) {
+          formatted = new JSONFormatter(error, 2, JSONFormatterConfig);
+          logsContainer.appendChild(formatted.render());
+        })
+      }
+
+      document.getElementById('logout').addEventListener('click', () => {
+        logout();
+      });
+      document.getElementById('search').addEventListener('click', () => {
+        search();
+      });
+      document.getElementById('get-users').addEventListener('click', () => {
+        getUsers();
+      });
+
+      document.getElementById('getStatValue').addEventListener('click', () => {
+        getStatValue();
+      });
+      
+      document.getElementById('clear').addEventListener('click', () => {
+        logsContainer.innerHTML = '';
+      });
+      document.getElementById('state-toggle').addEventListener('click', () => {
+        toggleState();
+      });
+      // Call Actions
+      document.getElementById('Answer').addEventListener('click', () => {
+        sendCallAction('Answer');
+      });
+      document.getElementById('Release').addEventListener('click', () => {
+        sendCallAction('Release');
+      });
+      document.getElementById('Hold').addEventListener('click', () => {
+        sendCallAction('Hold');
+      });
+      document.getElementById('Retrieve').addEventListener('click', () => {
+        sendCallAction('Retrieve');
+      });
+      
+      // Check session at first 
+      currentSession();
+    </script>
+  </body>
+</html>
